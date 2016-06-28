@@ -417,4 +417,9 @@
       <Filter>Optimization\strategies\x86_asm</Filter>
     </YASM>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\fullsearch_kernel.cl">
+      <Filter>Compression</Filter>
+    </None>
+  </ItemGroup>
 </Project>

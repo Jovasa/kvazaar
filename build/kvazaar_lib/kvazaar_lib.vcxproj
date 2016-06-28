@@ -290,6 +290,9 @@
     <YASM Include="..\..\src\strategies\x86_asm\picture-x86-asm-sad.asm" />
     <YASM Include="..\..\src\strategies\x86_asm\picture-x86-asm-satd.asm" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\fullsearch_kernel.cl" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\yasm\vsyasm.targets" />
