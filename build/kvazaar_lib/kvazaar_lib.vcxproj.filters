@@ -49,6 +49,10 @@
     <Filter Include="Threading">
       <UniqueIdentifier>{63c21cb2-b379-4d38-bcb8-173786c2466d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="OpenCL Files">
+      <UniqueIdentifier>{D011BB44-1BF7-4113-997B-A081035B40D8}</UniqueIdentifier>
+      <Extensions>cl</Extensions>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\strategies\strategies-nal.c">
@@ -418,8 +422,8 @@
     </YASM>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\src\fullsearch_kernel.cl">
-      <Filter>Compression</Filter>
-    </None>
+    <Intel_OpenCL_Build_Rules Include="..\..\src\fullsearch_kernel.cl">
+      <Filter>OpenCL Files</Filter>
+    </Intel_OpenCL_Build_Rules>
   </ItemGroup>
 </Project>

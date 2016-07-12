@@ -47,6 +47,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
     <Import Project="..\yasm\vsyasm.props" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\IntelOpenCL.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="..\C_Properties.props" />
@@ -291,10 +292,11 @@
     <YASM Include="..\..\src\strategies\x86_asm\picture-x86-asm-satd.asm" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\src\fullsearch_kernel.cl" />
+    <Intel_OpenCL_Build_Rules Include="..\..\src\fullsearch_kernel.cl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\yasm\vsyasm.targets" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\IntelOpenCL.targets" />
   </ImportGroup>
 </Project>
