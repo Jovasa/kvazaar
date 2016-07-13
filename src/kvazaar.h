@@ -27,7 +27,7 @@
  */
 
 #include <stdint.h>
-
+#include <CL/cl.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -580,6 +580,23 @@ typedef struct kvz_api {
                                   kvz_picture **pic_out,
                                   kvz_picture **src_out,
                                   kvz_frame_info *info_out);
+  /**
+  * \brief Initialize OpenCL for fullsearch
+  * 
+  * Initializes OpenCL structures for mve fullsearch, builds the
+  * program with preprocessor macros that are gained from encoder
+  * controll.
+  *
+  * \param encoder   encoder 
+  * \param program   unitialized cl_program
+  * \param context   unitialized cl_context
+  * \param commands  unitialized cl_commands
+  * \return          0 on succes, non-zero on error.
+  */
+  int             (*opencl_init)(kvz_encoder* encoder,
+                                 cl_program* program,
+                                 cl_context* context,
+                                 cl_command_queue* commands);
 } kvz_api;
 
 

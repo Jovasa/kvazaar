@@ -248,64 +248,7 @@ done:
 }
 
 
-int get_opencl_stuff( encoder_control_t* encoder, cl_program* program, cl_context* context, cl_command_queue* commands )
-{
-  int err = CL_SUCCESS;
-  cl_uint numPlat;
-  cl_device_id device_id;
-  FILE *program_handle;
-  size_t program_size;
-  char *program_buffer;
 
-  err = clGetPlatformIDs( 0, NULL, &numPlat );
-  if ( err != CL_SUCCESS ) return err;
-
-  cl_platform_id* platform = (cl_platform_id*)malloc( sizeof( cl_platform_id )*numPlat );
-  err = clGetPlatformIDs( numPlat, platform, NULL );
-  if ( err != CL_SUCCESS ) return err;
-
-  for ( unsigned int i = 0; i < numPlat; i++ ) {
-    err = clGetDeviceIDs( platform[i], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL );
-    if ( err == CL_SUCCESS && i != 2 ) break;
-  }
-  if ( err != CL_SUCCESS ) return err;
-  *context = clCreateContext( 0, 1, &device_id, NULL, NULL, &err );
-  if ( err != CL_SUCCESS ) return err;
-
-  *commands = clCreateCommandQueue( *context, device_id, CL_QUEUE_PROFILING_ENABLE, &err );
-  if ( err != CL_SUCCESS ) return err;
-
-  program_handle = fopen( "kernel.cl", "r" );
-  if ( program_handle == NULL ) return 1;
-
-  fseek( program_handle, 0, SEEK_END );
-  program_size = ftell( program_handle );
-  rewind( program_handle );
-  program_buffer = (char*)malloc( program_size + 1 );
-  program_buffer[program_size] = '\0';
-  fread( program_buffer, sizeof( char ), program_size, program_handle );
-  fclose( program_handle );
-  *program = clCreateProgramWithSource( *context, 1, &program_buffer, 0, &err );
-  if ( err != CL_SUCCESS ) return err;
-
-  int search_range = 32;
-  switch ( encoder->cfg->ime_algorithm ) {
-  case KVZ_IME_FULL64: search_range = 64; break;
-  case KVZ_IME_FULL32: search_range = 32; break;
-  case KVZ_IME_FULL16: search_range = 16; break;
-  case KVZ_IME_FULL8: search_range = 8; break;
-  default: break;
-  }
-  char build_opts[64];
-  sprintf(build_opts, "-D SEARCH_RANGE=%d -D WIDTH=%d -D HEIGHT=%d",search_range, encoder->in.width, encoder->in.height);
-
-  err = clBuildProgram( *program, 1, &device_id, build_opts, NULL, NULL );
-  if ( err != CL_SUCCESS ) return err;
-
-  free( platform );
-  free( program_buffer );
-  return 0;
-}
 
 /**
  * \brief Program main function.
