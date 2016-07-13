@@ -367,6 +367,7 @@ static int get_opencl_stuff(kvz_encoder* encoder , cl_program* program , cl_cont
     err = clGetDeviceIDs(platform[i] , CL_DEVICE_TYPE_GPU , 1 , &device_id , NULL);
     if (err == CL_SUCCESS && i != 2) break;
   }
+  free(platform);
   if (err != CL_SUCCESS) return err;
   *context = clCreateContext(0 , 1 , &device_id , NULL , NULL , &err);
   if (err != CL_SUCCESS) return err;
@@ -385,6 +386,7 @@ static int get_opencl_stuff(kvz_encoder* encoder , cl_program* program , cl_cont
   fread(program_buffer , sizeof(char) , program_size , program_handle);
   fclose(program_handle);
   *program = clCreateProgramWithSource(*context , 1 , &program_buffer , 0 , &err);
+  free(program_buffer);
   if (err != CL_SUCCESS) return err;
 
   //TODO: Check if it's possible to allocate the sad buffer on device
@@ -402,8 +404,6 @@ static int get_opencl_stuff(kvz_encoder* encoder , cl_program* program , cl_cont
   err = clBuildProgram(*program , 1 , &device_id , build_opts , NULL , NULL);
   if (err != CL_SUCCESS) return err;
 
-  free(platform);
-  free(program_buffer);
   return 0;
 }
 
@@ -422,6 +422,7 @@ static const kvz_api kvz_8bit_api = {
   .encoder_close = kvazaar_close,
   .encoder_headers = kvazaar_headers,
   .encoder_encode = kvazaar_field_encoding_adapter,
+  
   .opencl_init = get_opencl_stuff,
 };
 
