@@ -61,12 +61,6 @@ struct kvz_encoder {
 
   unsigned frames_started;
   unsigned frames_done;
-
-  struct {
-    cl_program* mve_fullsearch_prog;
-    cl_context* mve_fullsearch_context;
-    cl_command_queue* mve_fullsearch_cqueue;
-  } opencl_structs;
 };
 
 #endif // KVAZAAR_INTERNAL_H_

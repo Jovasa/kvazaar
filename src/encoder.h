@@ -53,6 +53,12 @@ typedef struct encoder_control_t
     int64_t pixels_per_pic;
     int8_t source_scan_type;
   } in;
+
+  struct {
+    cl_program* mve_fullsearch_prog;
+    cl_context* mve_fullsearch_context;
+    cl_command_queue* mve_fullsearch_cqueue;
+  } opencl_structs;
   
   /* TODO: add ME data */
   struct {

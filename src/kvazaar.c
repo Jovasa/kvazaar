@@ -40,7 +40,7 @@
 #include "videoframe.h"
 
 // Forward declaration
-static int get_opencl_stuff(kvz_encoder* encoder);
+static int get_opencl_stuff(encoder_control_t* encoder);
 
 static void kvazaar_close(kvz_encoder *encoder)
 {
@@ -51,15 +51,6 @@ static void kvazaar_close(kvz_encoder *encoder)
       }
     }
     FREE_POINTER(encoder->states);
-    // If OpenCL
-    {
-      clReleaseProgram(*(encoder->opencl_structs.mve_fullsearch_prog));
-      clReleaseCommandQueue(*(encoder->opencl_structs.mve_fullsearch_cqueue));
-      clReleaseContext(*(encoder->opencl_structs.mve_fullsearch_context));
-      FREE_POINTER(encoder->opencl_structs.mve_fullsearch_prog);
-      FREE_POINTER(encoder->opencl_structs.mve_fullsearch_context);
-      FREE_POINTER(encoder->opencl_structs.mve_fullsearch_cqueue);
-    }
     kvz_encoder_control_free(encoder->control);
     encoder->control = NULL;
   }
@@ -98,7 +89,8 @@ static kvz_encoder * kvazaar_open(const kvz_config *cfg)
 
   kvz_init_input_frame_buffer(&encoder->input_buffer);
 
-  if (get_opencl_stuff(encoder)){
+  // TODO: Check if opencl is enabled
+  if (get_opencl_stuff(encoder->control)){
     goto kvazaar_open_failure;
   }
 
@@ -361,7 +353,7 @@ kvazaar_field_encoding_adapter_failure:
   return 0;
 }
 
-static int get_opencl_stuff(kvz_encoder* encoder)
+static int get_opencl_stuff(const encoder_control_t* const encoder)
 {
   // TODO: Have user select used (GPU) device
   int err = CL_SUCCESS;
@@ -370,10 +362,6 @@ static int get_opencl_stuff(kvz_encoder* encoder)
   FILE *program_handle;
   size_t program_size;
   char *program_buffer;
-
- encoder->opencl_structs.mve_fullsearch_context = MALLOC(cl_context, 1);
- encoder->opencl_structs.mve_fullsearch_cqueue = MALLOC(cl_command_queue, 1);
- encoder->opencl_structs.mve_fullsearch_prog = MALLOC(cl_program, 1);
 
  cl_context* context = encoder->opencl_structs.mve_fullsearch_context;
  cl_command_queue* commands = encoder->opencl_structs.mve_fullsearch_cqueue;
@@ -414,7 +402,7 @@ static int get_opencl_stuff(kvz_encoder* encoder)
 
   //TODO: Check if it's possible to allocate the sad buffer on device
   int search_range = 32;
-  switch (encoder->control->cfg->ime_algorithm) {
+  switch (encoder->cfg->ime_algorithm) {
   case KVZ_IME_FULL64: search_range = 64; break;
   case KVZ_IME_FULL32: search_range = 32; break;
   case KVZ_IME_FULL16: search_range = 16; break;
@@ -422,7 +410,7 @@ static int get_opencl_stuff(kvz_encoder* encoder)
   default: break;
   }
   char build_opts[64];
-  sprintf(build_opts , "-D SEARCH_RANGE=%d -D WIDTH=%d -D HEIGHT=%d" , search_range , encoder->control->in.width , encoder->control->in.height);
+  sprintf(build_opts , "-D SEARCH_RANGE=%d -D WIDTH=%d -D HEIGHT=%d" , search_range , encoder->in.width , encoder->in.height);
 
   err = clBuildProgram(*program , 1 , &device_id , build_opts , NULL , NULL);
   if (err != CL_SUCCESS)
@@ -431,7 +419,7 @@ static int get_opencl_stuff(kvz_encoder* encoder)
     unsigned char buffer[2048];
 
     clGetProgramBuildInfo(*program , device_id , CL_PROGRAM_BUILD_LOG , sizeof(buffer) , buffer , &len);
-    printf("%s" , buffer);
+    printf("%p" , buffer);
     return err;
   }
   return 0;

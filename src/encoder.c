@@ -98,6 +98,9 @@ encoder_control_t* kvz_encoder_control_init(const kvz_config *const cfg) {
     fprintf(stderr, "Failed to allocate encoder control.\n");
     goto init_failed;
   }
+  encoder->opencl_structs.mve_fullsearch_context = MALLOC(cl_context , 1);
+  encoder->opencl_structs.mve_fullsearch_cqueue = MALLOC(cl_command_queue , 1);
+  encoder->opencl_structs.mve_fullsearch_prog = MALLOC(cl_program , 1);
 
   // Need to set owf before initializing threadqueue.
   if (cfg->owf >= 0) {
@@ -471,6 +474,10 @@ void kvz_encoder_control_free(encoder_control_t *const encoder) {
   FREE_POINTER(encoder->tiles_ctb_addr_ts_to_rs);
 
   FREE_POINTER(encoder->tiles_tile_id);
+
+  FREE_POINTER(encoder->opencl_structs.mve_fullsearch_context);
+  FREE_POINTER(encoder->opencl_structs.mve_fullsearch_cqueue);
+  FREE_POINTER(encoder->opencl_structs.mve_fullsearch_prog);
 
   kvz_scalinglist_destroy(&encoder->scaling_list);
 
