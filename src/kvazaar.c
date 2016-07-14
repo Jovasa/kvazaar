@@ -39,6 +39,8 @@
 #include "threadqueue.h"
 #include "videoframe.h"
 
+// Forward declaration
+static int get_opencl_stuff(kvz_encoder* encoder);
 
 static void kvazaar_close(kvz_encoder *encoder)
 {
@@ -51,9 +53,9 @@ static void kvazaar_close(kvz_encoder *encoder)
     FREE_POINTER(encoder->states);
     // If OpenCL
     {
-      clReleaseProgram(encoder->opencl_structs.mve_fullsearch_prog);
-      clReleaseCommandQueue(encoder->opencl_structs.mve_fullsearch_cqueue);
-      clReleaseContext(encoder->opencl_structs.mve_fullsearch_context);
+      clReleaseProgram(*(encoder->opencl_structs.mve_fullsearch_prog));
+      clReleaseCommandQueue(*(encoder->opencl_structs.mve_fullsearch_cqueue));
+      clReleaseContext(*(encoder->opencl_structs.mve_fullsearch_context));
       FREE_POINTER(encoder->opencl_structs.mve_fullsearch_prog);
       FREE_POINTER(encoder->opencl_structs.mve_fullsearch_context);
       FREE_POINTER(encoder->opencl_structs.mve_fullsearch_cqueue);
@@ -95,6 +97,10 @@ static kvz_encoder * kvazaar_open(const kvz_config *cfg)
   encoder->frames_done = 0;
 
   kvz_init_input_frame_buffer(&encoder->input_buffer);
+
+  if (get_opencl_stuff(encoder)){
+    goto kvazaar_open_failure;
+  }
 
   encoder->states = calloc(encoder->num_encoder_states, sizeof(encoder_state_t));
   if (!encoder->states) {
@@ -392,7 +398,7 @@ static int get_opencl_stuff(kvz_encoder* encoder)
   *commands = clCreateCommandQueue(*context , device_id , CL_QUEUE_PROFILING_ENABLE , &err);
   if (err != CL_SUCCESS) return err;
 
-  program_handle = fopen("kernel.cl" , "r");
+  program_handle = fopen("fullsearch_kernel.cl" , "rb");
   if (program_handle == NULL) return 1;
 
   fseek(program_handle , 0 , SEEK_END);
@@ -419,8 +425,15 @@ static int get_opencl_stuff(kvz_encoder* encoder)
   sprintf(build_opts , "-D SEARCH_RANGE=%d -D WIDTH=%d -D HEIGHT=%d" , search_range , encoder->control->in.width , encoder->control->in.height);
 
   err = clBuildProgram(*program , 1 , &device_id , build_opts , NULL , NULL);
-  if (err != CL_SUCCESS) return err;
+  if (err != CL_SUCCESS)
+  {
+    size_t len;
+    unsigned char buffer[2048];
 
+    clGetProgramBuildInfo(*program , device_id , CL_PROGRAM_BUILD_LOG , sizeof(buffer) , buffer , &len);
+    printf("%s" , buffer);
+    return err;
+  }
   return 0;
 }
 
@@ -439,8 +452,6 @@ static const kvz_api kvz_8bit_api = {
   .encoder_close = kvazaar_close,
   .encoder_headers = kvazaar_headers,
   .encoder_encode = kvazaar_field_encoding_adapter,
-  
-  .opencl_init = get_opencl_stuff,
 };
 
 

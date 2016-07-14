@@ -65,6 +65,9 @@ typedef struct {
   image_list_t *ref;
   int8_t ref_list;
 
+  //TODO add ocl buffers to reference either here or to image_list_t
+  // Also prediction vector buffers and event that they are ready
+
   struct {
     int32_t poc;
     int8_t list;
