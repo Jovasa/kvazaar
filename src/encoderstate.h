@@ -202,6 +202,15 @@ typedef struct encoder_state_t {
   //Jobs to wait for
   threadqueue_job_t * tqj_recon_done; //Reconstruction is done
   threadqueue_job_t * tqj_bitstream_written; //Bitstream is written
+
+  //! Kernels might have to be moved to global state instead.
+  struct {
+    cl_kernel calc_sad_kernel;
+    cl_kernel reuse_sad_kernel;
+    cl_kernel reuse_sad_kernel_amp;
+    cl_kernel calc_pred_kernel;
+    cl_kernel expand_kernel;
+  } kernels;
 } encoder_state_t;
 
 void kvz_encode_one_frame(encoder_state_t *state);

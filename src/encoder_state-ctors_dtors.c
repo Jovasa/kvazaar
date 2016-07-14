@@ -163,6 +163,29 @@ static void encoder_state_config_wfrow_finalize(encoder_state_t * const state) {
   //Nothing to do (yet?)
 }
 
+static int encoder_state_kernel_init(encoder_state_t * const state)
+{
+  //Build each kernel
+  int err = CL_SUCCESS;
+  state->kernels.calc_pred_kernel = clCreateKernel(*state->encoder_control->opencl_structs.mve_fullsearch_prog,
+    "get_prediction_mv" , &err);
+  if (err != CL_SUCCESS) return 0;
+  state->kernels.calc_sad_kernel = clCreateKernel(*state->encoder_control->opencl_structs.mve_fullsearch_prog ,
+    "calc_sads" , &err);
+  if (err != CL_SUCCESS) return 0;
+  state->kernels.expand_kernel = clCreateKernel(*state->encoder_control->opencl_structs.mve_fullsearch_prog ,
+    "expand" , &err);
+  if (err != CL_SUCCESS) return 0;
+  state->kernels.reuse_sad_kernel = clCreateKernel(*state->encoder_control->opencl_structs.mve_fullsearch_prog,
+    "sad_reuse" , &err);
+  if (err != CL_SUCCESS) return 0;
+  state->kernels.reuse_sad_kernel_amp= clCreateKernel(*state->encoder_control->opencl_structs.mve_fullsearch_prog,
+    "sad_reuse_amp" , &err);
+  if (err != CL_SUCCESS) return 0;
+
+  return 1;
+}
+
 #ifdef KVZ_DEBUG_PRINT_THREADING_INFO
 static void encoder_state_dump_graphviz(const encoder_state_t * const state) {
   int i;
@@ -327,6 +350,10 @@ int kvz_encoder_state_init(encoder_state_t * const child_state, encoder_state_t 
     child_state->wfrow = MALLOC(encoder_state_config_wfrow_t, 1);
     if (!child_state->wfrow || !encoder_state_config_wfrow_init(child_state, 0)) {
       fprintf(stderr, "Could not initialize encoder_state->wfrow!\n");
+      return 0;
+    }
+    if (!encoder_state_kernel_init(child_state)) {
+      fprintf(stderr , "Could not initialize kernels!\n");
       return 0;
     }
   } else {
