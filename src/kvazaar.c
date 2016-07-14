@@ -49,7 +49,15 @@ static void kvazaar_close(kvz_encoder *encoder)
       }
     }
     FREE_POINTER(encoder->states);
-
+    // If OpenCL
+    {
+      clReleaseProgram(encoder->opencl_structs.mve_fullsearch_prog);
+      clReleaseCommandQueue(encoder->opencl_structs.mve_fullsearch_cqueue);
+      clReleaseContext(encoder->opencl_structs.mve_fullsearch_context);
+      FREE_POINTER(encoder->opencl_structs.mve_fullsearch_prog);
+      FREE_POINTER(encoder->opencl_structs.mve_fullsearch_context);
+      FREE_POINTER(encoder->opencl_structs.mve_fullsearch_cqueue);
+    }
     kvz_encoder_control_free(encoder->control);
     encoder->control = NULL;
   }
@@ -347,14 +355,23 @@ kvazaar_field_encoding_adapter_failure:
   return 0;
 }
 
-static int get_opencl_stuff(kvz_encoder* encoder , cl_program* program , cl_context* context , cl_command_queue* commands)
+static int get_opencl_stuff(kvz_encoder* encoder)
 {
+  // TODO: Have user select used (GPU) device
   int err = CL_SUCCESS;
   cl_uint numPlat;
   cl_device_id device_id;
   FILE *program_handle;
   size_t program_size;
   char *program_buffer;
+
+ encoder->opencl_structs.mve_fullsearch_context = MALLOC(cl_context, 1);
+ encoder->opencl_structs.mve_fullsearch_cqueue = MALLOC(cl_command_queue, 1);
+ encoder->opencl_structs.mve_fullsearch_prog = MALLOC(cl_program, 1);
+
+ cl_context* context = encoder->opencl_structs.mve_fullsearch_context;
+ cl_command_queue* commands = encoder->opencl_structs.mve_fullsearch_cqueue;
+ cl_program* program = encoder->opencl_structs.mve_fullsearch_prog;
 
   err = clGetPlatformIDs(0 , NULL , &numPlat);
   if (err != CL_SUCCESS) return err;
