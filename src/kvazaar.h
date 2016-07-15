@@ -303,6 +303,9 @@ typedef struct kvz_picture {
   int64_t dts;             //!< \brief Decompression timestamp.
 
   enum kvz_interlacing interlacing; //!< \since 3.2.0 \brief Field order for interlaced pictures.
+
+  cl_mem exp_luma_buffer;  // Buffer that holds the expanded image to be used by OpenCL.
+  cl_event* expand_ready; // Event to check if the image has been expanded and is ready to be used.
 } kvz_picture;
 
 /**

@@ -213,6 +213,42 @@ static void* input_read_thread(void* in_args)
       }
     }
 
+    // If opencl
+    // TODO error checking
+    {
+      int width, height;
+      cl_event write_ready;
+      frame_in->expand_ready = MALLOC(cl_event, 1);
+      int search_range = 32;
+      switch (args->encoder->cfg->ime_algorithm) {
+      case KVZ_IME_FULL64: search_range = 64; break;
+      case KVZ_IME_FULL32: search_range = 32; break;
+      case KVZ_IME_FULL16: search_range = 16; break;
+      case KVZ_IME_FULL8: search_range = 8; break;
+      default: break;
+      }
+      width = args->opts->config->width;
+      height = args->opts->config->height;
+      // Init kernel and buffers
+      cl_kernel expand = clCreateKernel(*args->encoder->opencl_structs.mve_fullsearch_prog , "expand" , NULL);
+      cl_mem input_buffer = clCreateBuffer(*args->encoder->opencl_structs.mve_fullsearch_context ,
+        CL_MEM_READ_ONLY, width*height*sizeof(kvz_pixel) , frame_in->y , NULL);
+      frame_in->exp_luma_buffer = clCreateBuffer(*args->encoder->opencl_structs.mve_fullsearch_context , CL_MEM_READ_WRITE , 
+        (width + (search_range << 2))*(height + (search_range << 2))*sizeof(kvz_pixel) , NULL , NULL);
+      
+      // Write luma component to gpu
+      clEnqueueWriteBuffer(*args->encoder->opencl_structs.mve_fullsearch_cqueue , input_buffer , CL_FALSE , 0 , width*height*sizeof(kvz_pixel) , frame_in->y , 0 , NULL , &write_ready);
+
+      // Set kernel arguments
+      clSetKernelArg(expand , 0 , sizeof(cl_mem) , &input_buffer);
+      clSetKernelArg(expand , 1 , sizeof(cl_mem) , &frame_in->exp_luma_buffer);
+      
+      const size_t expand_image_size[2] = {width+(search_range<<2), height+(search_range<<2)};
+      const size_t work_group[2] = {16 , 16};
+
+      clEnqueueNDRangeKernel(*args->encoder->opencl_structs.mve_fullsearch_cqueue , expand , 2 , NULL , expand_image_size , work_group , 1 , &write_ready , frame_in->expand_ready);
+
+    }
     frames_read++;
 
     if (args->encoder->cfg->source_scan_type != 0) {
