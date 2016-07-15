@@ -89,6 +89,7 @@ void kvz_image_free(kvz_picture *const im)
     // Free our reference to the base image.
     kvz_image_free(im->base_image);
   } else {
+    free(im->expand_ready);
     free(im->fulldata);
   }
 
