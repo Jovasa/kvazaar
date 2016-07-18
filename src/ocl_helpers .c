@@ -22,15 +22,15 @@
 
 static size_t * returnBufferSizes(int width, int height)
 {
-  static size_t sizes[17];
-  for (int i = 0; i < 3; i++) {
-    sizes[i] = sizeof(cl_int2) * width / (8 << i)*height / (8 << i);
+  static size_t sizes[18];
+  for (int i = 0; i < 4; i++) {
+    sizes[i] = sizeof(cl_int2) * width / (8 << (3-i))*height / (8 << (3-i));
   }
-  for (int i = 3; i < 9; i++) {
-    sizes[i] = sizes[i % 3] / 2;
+  for (int i = 4; i < 10; i++) {
+    sizes[i] = sizes[(i-1) % 3] * 2;
   }
-  for (int i = 9; i < 17; i++) {
-    sizes[i] = sizes[4 + (i + 1) % 2];
+  for (int i = 10; i < 18; i++) {
+    sizes[i] = sizes[4 + i % 2];
   }
   return sizes;
 }
@@ -98,15 +98,26 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
     err = clSetKernelArg(*calc_sads , 3 , local , NULL);
   }
 
+  // Iterate over each reference image
   for (int refs_used = 0; state->global->ref->used_size != refs_used; refs_used++) {
     cl_event sads_ready;
+    cl_event* *mapping_ready = malloc(sizeof(cl_event*)*buffers_used);
     state->global->buffers[refs_used] = malloc(sizeof(mv_buffers));
     mv_buffers* bufs = state->global->buffers[refs_used];
     bufs->buffers = malloc(sizeof(cl_mem*)*buffers_used);
     bufs->ready = malloc(sizeof(cl_event*)*buffers_used);
+    bufs->vectors = malloc(sizeof(cl_int2*)*buffers_used);
 
+    // create all of the needed buffers
     cl_mem sad_buffer = clCreateBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_context , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS ,
       sizeof(cl_short)*(width>>3)*(height>>3)*((search_range * 2 + 1)*(search_range * 2 + 1) + 1) , NULL , &err);
+    for (int i = 0; i != buffers_used; i++) {
+      bufs->buffers[i] = malloc(sizeof(cl_mem));
+      bufs->ready[i] = malloc(sizeof(cl_event)); 
+      mapping_ready[i] = malloc(sizeof(cl_event));
+      *bufs->buffers[i] = clCreateBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_context , CL_MEM_WRITE_ONLY , sizes[i] , NULL , &err);
+      bufs->vectors[i] = clEnqueueMapBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *bufs->buffers[i] , CL_FALSE , CL_MEM_READ_WRITE , 0 , sizes[i] ,0, NULL, mapping_ready[i], &err);
+    }
 
     // Set the arguments that are changing depending on the reference
     err = clSetKernelArg(*calc_sads , 1 , sizeof(cl_mem) , &state->global->ref->images[refs_used]->exp_luma_buffer);
@@ -114,10 +125,33 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
 
     err = clEnqueueNDRangeKernel(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *calc_sads , 3 , NULL , sad_calc_kernel_size , workgroup_size , 1 ,
       state->global->ref->images[refs_used]->expand_ready, &sads_ready);
+    {
+      // Set sad buffer for reuser, might change so that amp is initialized only when needed
+      err = clSetKernelArg(*reuse_sads , 0 , sizeof(cl_mem) , &sad_buffer);
+      err = clSetKernelArg(*reuse_sads_amp , 0 , sizeof(cl_mem) , &sad_buffer);
+    }
+    {
+      // We do this separately because if we want to implement using the previous mv for search we have to use 
+      // a diffent kernel than what we use for rest of the time.
+      int xdepth = 4;
+      int ydepth = 4;
+      size_t sadA[3] = {width >>6 , height>>6, 64};
+      err = clSetKernelArg(*reuse_sads , 1 , sizeof(cl_mem) , bufs->buffers[0]);
+      err = clSetKernelArg(*reuse_sads , 2 , sizeof(int) , &xdepth);
+      err = clSetKernelArg(*reuse_sads , 3 , sizeof(int) , &ydepth);
 
+      clWaitForEvents(1 , mapping_ready[0]);
+      err = clEnqueueNDRangeKernel(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *reuse_sads , 3 , NULL , sadA , workgroup_size , 1 , &sads_ready , bufs->ready[0]);
+    }
+    // TODO add rest of the kernel calls here.
     for (int i = 1; i != buffers_used; i++) {
       break;
     }
+    for (int i = 0; i != buffers_used; i++) {
+      clReleaseEvent(*mapping_ready[i]);
+      free(mapping_ready[i]);
+    }
+    FREE_POINTER(mapping_ready);
     clReleaseMemObject(sad_buffer);
     clReleaseEvent(sads_ready);
   }
