@@ -33,6 +33,7 @@
 #include "intra.h"
 #include "inter.h"
 #include "kvz_math.h"
+#include  "ocl_helpers.h"
 #include "rate_control.h"
 #include "sao.h"
 #include "search.h"
@@ -965,6 +966,7 @@ void kvz_encoder_next_frame(encoder_state_t *state)
     if (!encoder->cfg->gop_len ||
         !prev_state->global->poc ||
         encoder->cfg->gop[prev_state->global->gop_offset].is_ref) {
+      ocl_expand_rec(state , state->tile->frame->rec);
       kvz_image_list_add(state->global->ref,
                      prev_state->tile->frame->rec,
                      prev_state->tile->frame->cu_array,
@@ -980,6 +982,7 @@ void kvz_encoder_next_frame(encoder_state_t *state)
       !state->global->poc ||
       encoder->cfg->gop[state->global->gop_offset].is_ref) {
     // Add current reconstructed picture as reference
+    ocl_expand_rec(state , state->tile->frame->rec);
     kvz_image_list_add(state->global->ref,
                    state->tile->frame->rec,
                    state->tile->frame->cu_array,

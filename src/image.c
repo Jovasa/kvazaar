@@ -64,6 +64,8 @@ kvz_picture *kvz_image_alloc(const int32_t width, const int32_t height)
 
   im->interlacing = KVZ_INTERLACING_NONE;
 
+  im->expand_ready = NULL;
+
   return im;
 }
 
@@ -89,7 +91,11 @@ void kvz_image_free(kvz_picture *const im)
     // Free our reference to the base image.
     kvz_image_free(im->base_image);
   } else {
-    free(im->expand_ready);
+    clWaitForEvents(1 , im->expand_ready);
+    if (im->expand_ready) {
+      clReleaseMemObject(im->exp_luma_buffer);
+      free(im->expand_ready);
+    }
     free(im->fulldata);
   }
 
