@@ -893,6 +893,7 @@ void kvz_encode_one_frame(encoder_state_t * const state)
     encoder_state_new_frame(state);
     PERFORMANCE_MEASURE_END(KVZ_PERF_FRAME, state->encoder_control->threadqueue, "type=new_frame,frame=%d,poc=%d", state->global->frame, state->global->poc);
   }
+  ocl_pre_calculate_mvs(state);
   {
     PERFORMANCE_MEASURE_START(KVZ_PERF_FRAME);
     encoder_state_encode(state);
