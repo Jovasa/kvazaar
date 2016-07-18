@@ -41,6 +41,11 @@ static int encoder_state_config_global_init(encoder_state_t * const state) {
     fprintf(stderr, "Failed to allocate the picture list!\n");
     return 0;
   }
+  state->global->buffers = malloc(sizeof(mv_buffers*)* MAX_REF_PIC_COUNT);
+  if (!state->global->buffers) {
+    fprintf(stderr , "Failed to allocate space for buffer pointers.\n");
+    return 0;
+  }
   state->global->ref_list = REF_PIC_LIST_0;
   state->global->frame = 0;
   state->global->poc = 0;

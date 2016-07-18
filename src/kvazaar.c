@@ -35,6 +35,7 @@
 #include "image.h"
 #include "input_frame_buffer.h"
 #include "kvazaar_internal.h"
+#include "ocl_helpers.h"
 #include "strategyselector.h"
 #include "threadqueue.h"
 #include "videoframe.h"
@@ -229,6 +230,7 @@ static int kvazaar_encode(kvz_encoder *enc,
   if (kvz_encoder_feed_frame(&enc->input_buffer, state, pic_in)) {
     assert(state->global->frame == enc->frames_started);
     // Start encoding.
+    ocl_pre_calculate_mvs(state);
     kvz_encode_one_frame(state);
     enc->frames_started += 1;
   }

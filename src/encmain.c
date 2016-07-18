@@ -236,7 +236,6 @@ static void* input_read_thread(void* in_args)
       
       // Write luma component to gpu
       err = clEnqueueWriteBuffer(*args->encoder->opencl_structs.mve_fullsearch_cqueue , input_buffer , CL_FALSE , 0 , width*height*sizeof(kvz_pixel) , frame_in->y , 0 , NULL , frame_in->expand_ready);
-      clReleaseMemObject(input_buffer);
     }
     frames_read++;
 

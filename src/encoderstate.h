@@ -48,7 +48,11 @@ typedef enum {
   ENCODER_STATE_TYPE_WAVEFRONT_ROW = 'W',
 } encoder_state_type;
 
-
+typedef struct
+{
+  cl_mem* *buffers;
+  cl_event* *ready;
+} mv_buffers;
 
 typedef struct {
   double cur_lambda_cost; //!< \brief Lambda for SSE
@@ -65,8 +69,7 @@ typedef struct {
   image_list_t *ref;
   int8_t ref_list;
 
-  //TODO add ocl buffers to reference either here or to image_list_t
-  // Also prediction vector buffers and event that they are ready
+  mv_buffers* *buffers;
 
   struct {
     int32_t poc;
@@ -203,12 +206,12 @@ typedef struct encoder_state_t {
   threadqueue_job_t * tqj_recon_done; //Reconstruction is done
   threadqueue_job_t * tqj_bitstream_written; //Bitstream is written
 
-  //! Kernels might have to be moved to global state instead.
+  // Kernels might have to be moved to global state instead.
   struct {
-    cl_kernel calc_sad_kernel;
-    cl_kernel reuse_sad_kernel;
-    cl_kernel reuse_sad_kernel_amp;
-    cl_kernel calc_pred_kernel;
+    cl_kernel calc_sad_kernel; // *target, *reference, *sads, local for img2, (pred vecs)
+    cl_kernel reuse_sad_kernel; // *sads, *vectors, xdepth, ydepth, (pred vecs)
+    cl_kernel reuse_sad_kernel_amp; // *sads, *vectors, depth, mode, (pred vecs)
+    cl_kernel calc_pred_kernel; // *sads, *vectors
     cl_kernel expand_kernel;
   } kernels;
 } encoder_state_t;

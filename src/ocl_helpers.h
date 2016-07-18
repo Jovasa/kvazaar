@@ -27,4 +27,6 @@
 
 void ocl_expand_rec(encoder_state_t* state , kvz_picture* im);
 
+int ocl_pre_calculate_mvs(struct encoder_state_t* state);
+
 #endif //OCL_HELPERS
