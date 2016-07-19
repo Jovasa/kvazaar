@@ -104,7 +104,7 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
     cl_event* *mapping_ready = malloc(sizeof(cl_event*)*buffers_used);
     state->global->buffers[refs_used] = malloc(sizeof(mv_buffers));
     mv_buffers* bufs = state->global->buffers[refs_used];
-    bufs->buffers = malloc(sizeof(cl_mem*)*buffers_used);
+    cl_mem* buffers = malloc((sizeof(cl_mem)*buffers_used));
     bufs->ready = malloc(sizeof(cl_event*)*buffers_used);
     bufs->vectors = malloc(sizeof(cl_int2*)*buffers_used);
 
@@ -112,11 +112,11 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
     cl_mem sad_buffer = clCreateBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_context , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS ,
       sizeof(cl_short)*(width>>3)*(height>>3)*((search_range * 2 + 1)*(search_range * 2 + 1) + 1) , NULL , &err);
     for (int i = 0; i != buffers_used; i++) {
-      bufs->buffers[i] = malloc(sizeof(cl_mem));
       bufs->ready[i] = malloc(sizeof(cl_event)); 
       mapping_ready[i] = malloc(sizeof(cl_event));
-      *bufs->buffers[i] = clCreateBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_context , CL_MEM_WRITE_ONLY , sizes[i] , NULL , &err);
-      bufs->vectors[i] = clEnqueueMapBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *bufs->buffers[i] , CL_FALSE , CL_MEM_READ_WRITE , 0 , sizes[i] ,0, NULL, mapping_ready[i], &err);
+      buffers[i] = clCreateBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_context , CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, sizes[i] , NULL , &err);
+      bufs->vectors[i] = clEnqueueMapBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , buffers[i] , CL_FALSE , CL_MAP_READ ,
+        0 , sizes[i] ,0, NULL, mapping_ready[i], &err);
     }
 
     // Set the arguments that are changing depending on the reference
@@ -135,22 +135,52 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
       // a diffent kernel than what we use for rest of the time.
       int xdepth = 4;
       int ydepth = 4;
-      size_t sadA[3] = {width >>6 , height>>6, 64};
-      err = clSetKernelArg(*reuse_sads , 1 , sizeof(cl_mem) , bufs->buffers[0]);
+      const size_t num_of_blocks[3] = {width >>6 , height>>6, 64};
+      err = clSetKernelArg(*reuse_sads , 1 , sizeof(cl_mem) , &buffers[0]);
       err = clSetKernelArg(*reuse_sads , 2 , sizeof(int) , &xdepth);
       err = clSetKernelArg(*reuse_sads , 3 , sizeof(int) , &ydepth);
 
       clWaitForEvents(1 , mapping_ready[0]);
-      err = clEnqueueNDRangeKernel(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *reuse_sads , 3 , NULL , sadA , workgroup_size , 1 , &sads_ready , bufs->ready[0]);
+      err = clEnqueueNDRangeKernel(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *reuse_sads , 3 , NULL ,
+        num_of_blocks , workgroup_size , 1 , &sads_ready , bufs->ready[0]);
     }
-    // TODO add rest of the kernel calls here.
-    for (int i = 1; i != buffers_used; i++) {
-      break;
+    // NxN kernels 
+    // 32x32, 16x16, 8x8
+    for (int i = 1; i != 4; i++) {
+      int xdepth = 4 - i;
+      int ydepth = 4 - i;
+      const size_t num_of_blocks[3] = {width >> (6 - i) , height >> (6 - i) , 64};
+      err = clSetKernelArg(*reuse_sads , 1 , sizeof(cl_mem) , &buffers[i]);
+      err = clSetKernelArg(*reuse_sads , 2 , sizeof(int) , &xdepth);
+      err = clSetKernelArg(*reuse_sads , 3 , sizeof(int) , &ydepth);
+      err = clEnqueueNDRangeKernel(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *reuse_sads , 3 , NULL ,
+        num_of_blocks , workgroup_size , 1 , &sads_ready , bufs->ready[i]);
     }
+    // SMP kernels
+    // 64x32, 32x16, 16x8
+    // 32x64, 16x32, 8x16
+    for (int i = 4; i != 10 && i < buffers_used; i++) {
+      int xdepth = i < 7 ? 8 - i : 10 - i;
+      int ydepth = i < 7 ? 7 - i : 11 - i;
+      const size_t num_of_blocks[3] = {width >> (xdepth + 2) , height >> (ydepth + 2) , 64};
+      err = clSetKernelArg(*reuse_sads , 1 , sizeof(cl_mem) , &buffers[i]);
+      err = clSetKernelArg(*reuse_sads , 2 , sizeof(int) , &xdepth);
+      err = clSetKernelArg(*reuse_sads , 3 , sizeof(int) , &ydepth);
+      err = clEnqueueNDRangeKernel(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *reuse_sads , 3 , NULL ,
+        num_of_blocks , workgroup_size , 1 , &sads_ready , bufs->ready[i]);
+    }
+    // AMP kernels
+    for (int i = 10; i != 18 && i < buffers_used; i++) {
+      int depth = 4 - i;
+      int mode = 4 - i;
+    }
+    // Release al the used memory
     for (int i = 0; i != buffers_used; i++) {
       clReleaseEvent(*mapping_ready[i]);
+      clReleaseMemObject(buffers[i]);
       free(mapping_ready[i]);
     }
+    FREE_POINTER(buffers);
     FREE_POINTER(mapping_ready);
     clReleaseMemObject(sad_buffer);
     clReleaseEvent(sads_ready);
