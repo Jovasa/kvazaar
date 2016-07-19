@@ -228,14 +228,12 @@ static void* input_read_thread(void* in_args)
       }
       width = args->opts->config->width;
       height = args->opts->config->height;
-      // Init kernel and buffers
-      cl_mem input_buffer = clCreateBuffer(*args->encoder->opencl_structs.mve_fullsearch_context ,
-        CL_MEM_READ_ONLY, width*height*sizeof(kvz_pixel) , NULL , &err);
-      frame_in->exp_luma_buffer = clCreateBuffer(*args->encoder->opencl_structs.mve_fullsearch_context , CL_MEM_READ_WRITE , 
-        (width + (search_range << 2))*(height + (search_range << 2))*sizeof(kvz_pixel) , NULL , &err);
+      // Init buffers
+      frame_in->exp_luma_buffer = clCreateBuffer(*args->encoder->opencl_structs.mve_fullsearch_context , CL_MEM_READ_ONLY , 
+        width*height*sizeof(kvz_pixel) , NULL , &err);
       
       // Write luma component to gpu
-      err = clEnqueueWriteBuffer(*args->encoder->opencl_structs.mve_fullsearch_cqueue , input_buffer , CL_FALSE , 0 , width*height*sizeof(kvz_pixel) , frame_in->y , 0 , NULL , frame_in->expand_ready);
+      err = clEnqueueWriteBuffer(*args->encoder->opencl_structs.mve_fullsearch_cqueue , frame_in->exp_luma_buffer , CL_FALSE , 0 , width*height*sizeof(kvz_pixel) , frame_in->y , 0 , NULL , frame_in->expand_ready);
     }
     frames_read++;
 

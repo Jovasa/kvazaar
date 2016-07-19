@@ -833,6 +833,14 @@ static void encoder_state_new_frame(encoder_state_t * const state) {
 
     encoder_state_remove_refs(state);
     encoder_state_ref_sort(state);
+    for (int i = 0; i < state->global->ref->used_size; i++) {
+      mv_buffers* bufs = &state->global->buffers[i];
+      for (int j = 0; j != 18; j++) {
+        if (!bufs->ready[j]) break;
+        clReleaseEvent(*bufs->ready[j]);
+        FREE_POINTER(bufs->ready[j]);
+      }
+    }
     double lambda;
     if (encoder->cfg->target_bitrate > 0) {
       // Rate control enabled.

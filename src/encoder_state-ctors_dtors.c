@@ -31,6 +31,7 @@
 #include "encoderstate.h"
 #include "image.h"
 #include "imagelist.h"
+#include "ocl_helpers.h"
 #include "threadqueue.h"
 #include "videoframe.h"
 
@@ -41,7 +42,7 @@ static int encoder_state_config_global_init(encoder_state_t * const state) {
     fprintf(stderr, "Failed to allocate the picture list!\n");
     return 0;
   }
-  state->global->buffers = malloc(sizeof(mv_buffers*)* MAX_REF_PIC_COUNT);
+  state->global->buffers = ocl_mv_buffers_alloc();
   if (!state->global->buffers) {
     fprintf(stderr , "Failed to allocate space for buffer pointers.\n");
     return 0;

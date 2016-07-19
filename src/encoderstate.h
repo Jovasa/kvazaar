@@ -69,7 +69,7 @@ typedef struct {
   image_list_t *ref;
   int8_t ref_list;
 
-  mv_buffers* *buffers;
+  mv_buffers* buffers;
 
   struct {
     int32_t poc;
