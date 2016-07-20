@@ -838,9 +838,9 @@ static void encoder_state_new_frame(encoder_state_t * const state) {
       for (int j = 0; j != 18; j++) {
         if (!bufs->ready[j]) break;
         clReleaseEvent(*bufs->ready[j]);
-        clReleaseMemObject(*bufs->buffers[i]);
+        clReleaseMemObject(*bufs->buffers[j]);
         FREE_POINTER(bufs->ready[j]);
-        FREE_POINTER(bufs->buffers[i]);
+        FREE_POINTER(bufs->buffers[j]);
       }
     }
     double lambda;

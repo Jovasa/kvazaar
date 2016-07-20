@@ -50,9 +50,9 @@ typedef enum {
 
 typedef struct
 {
-  cl_mem* *buffers;
-  cl_event* *ready;
-  cl_int2* *vectors;
+  cl_mem* buffers[18];
+  cl_event* ready[18];
+  cl_int2* vectors[18];
 } mv_buffers;
 
 typedef struct {

@@ -37,16 +37,13 @@ static size_t * returnBufferSizes(int width, int height)
 
 mv_buffers* ocl_mv_buffers_alloc()
 {
-  mv_buffers* buffers = malloc(sizeof(mv_buffers*) * 16);
-
+  mv_buffers* buffers = malloc(sizeof(mv_buffers) * 16);  
   if (buffers) {
     for (int i = 0; i != 16; i++) {
-      buffers[i].ready = malloc(sizeof(cl_event*) * 18);
-      buffers[i].vectors = malloc(sizeof(cl_int2*) * 18);
-      buffers[i].buffers = malloc(sizeof(cl_mem*) * 18);
       for (int j = 0; j != 18; j++) {
         buffers[i].ready[j] = NULL;
         buffers[i].vectors[j] = NULL;
+        buffers[i].buffers[j] = NULL;
       }
     }
   }
