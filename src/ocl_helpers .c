@@ -86,23 +86,21 @@ void ocl_expand_rec(encoder_state_t* state , kvz_picture* im)
 int ocl_pre_calculate_mvs(struct encoder_state_t* state)
 {
   int err = CL_SUCCESS;
+  const kvz_config* const cfg = state->encoder_control->cfg;
   // Values that are needed for calculating the mvs
-  int buffers_used = 4;
-  int width = state->encoder_control->cfg->width;
-  int height = state->encoder_control->cfg->height;
+  int width = cfg->width;
+  int height = cfg->height;
   size_t * sizes = returnBufferSizes(width , height);
   int search_range = 32;
   const size_t workgroup_size[3] = {1 , 1 , 64};
   const size_t sad_calc_kernel_size[3] = {width>>3, height>>3, 64};
-  switch (state->encoder_control->cfg->ime_algorithm) {
+  switch (cfg->ime_algorithm) {
   case KVZ_IME_FULL64: search_range = 64; break;
   case KVZ_IME_FULL32: search_range = 32; break;
   case KVZ_IME_FULL16: search_range = 16; break;
   case KVZ_IME_FULL8: search_range = 8; break;
   default: break;
   }
-  buffers_used += state->encoder_control->cfg->smp_enable ? 6 : 0;
-  buffers_used += state->encoder_control->cfg->amp_enable ? 8 : 0;
 
   cl_kernel* calc_sads = &state->kernels.calc_sad_kernel;
   cl_kernel* reuse_sads = &state->kernels.reuse_sad_kernel;
@@ -117,22 +115,30 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
   // Iterate over each reference image
   for (int refs_used = 0; state->global->ref->used_size != refs_used; refs_used++) {
     cl_event sads_ready;
-    cl_event* *mapping_ready = malloc(sizeof(cl_event*)*buffers_used);
+    cl_event* *mapping_ready = malloc(sizeof(cl_event*)*18);
     mv_buffers* bufs = &state->global->buffers[refs_used];
-    cl_event* ready = malloc(sizeof(cl_event)*buffers_used);
+    cl_event* ready = malloc(sizeof(cl_event)*18);
 
     // create all of the needed buffers
     cl_mem sad_buffer = clCreateBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_context , CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS ,
       sizeof(cl_short)*(width>>3)*(height>>3)*((search_range * 2 + 1)*(search_range * 2 + 1) + 1) , NULL , &err);
-    for (int i = 0; i != buffers_used; i++) {
+    for (int i = 0; i < 18;) {
+      if (i == 4 && !cfg->smp_enable) {
+        i = 10;
+        continue;
+      }
+      if (i == 10 && !cfg->amp_enable) {
+        i = 18;
+        continue;
+      }
       bufs->ready[i] = malloc(sizeof(cl_event)); 
       bufs->buffers[i] = malloc(sizeof(cl_mem));
       mapping_ready[i] = malloc(sizeof(cl_event));
       *bufs->buffers[i] = clCreateBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_context , CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, sizes[i] , NULL , &err);
       bufs->vectors[i] = clEnqueueMapBuffer(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *bufs->buffers[i] , CL_FALSE , CL_MAP_READ ,
         0 , sizes[i] ,0, NULL, mapping_ready[i], &err);
+      i++;
     }
-    for (int i = buffers_used; i < 18; i++) bufs->ready[i] = NULL;
 
     // Set the arguments that are changing depending on the reference
     err = clSetKernelArg(*calc_sads , 1 , sizeof(cl_mem) , &state->global->ref->images[refs_used]->exp_luma_buffer);
@@ -174,7 +180,7 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
     // SMP kernels
     // 64x32, 32x16, 16x8
     // 32x64, 16x32, 8x16
-    for (int i = 4; i != 10 && i < buffers_used; i++) {
+    for (int i = 4; i != 10 && cfg->smp_enable; i++) {
       int xdepth = i < 7 ? 7 - i : 9 - i;
       int ydepth = i < 7 ? 6 - i : 10 - i;
       const size_t num_of_blocks[3] = {width >> (xdepth + 2) , height >> (ydepth + 2) , 64};
@@ -186,7 +192,7 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
     }
     // AMP kernels
     // 2NxnU, 2NxnD, nLx2N, nRx2N
-    for (int i = 10; i < buffers_used; i++) {
+    for (int i = 10; i < 18 && cfg->amp_enable; i++) {
       int depth = 3 - (i%2);
       int mode = 4 + (i -10)/2;
       const size_t num_of_blocks[3] = {width >> (depth + 2) , height >> (depth + 2) , 64};
@@ -196,12 +202,20 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
       err = clEnqueueNDRangeKernel(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *reuse_sads_amp , 3 , NULL ,
         num_of_blocks , workgroup_size , 1 , mapping_ready[i] , &ready[i]);
     }
-    for (int i = 0; i != buffers_used; i++) {
+    for (int i = 0; i < 18; i++) {
+      if (!bufs->ready[i]) continue;
       err = clEnqueueUnmapMemObject(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue , *bufs->buffers[i] , bufs->vectors[i] , 1 , &ready[i] , bufs->ready[i]);
     }
     clFinish(*state->encoder_control->opencl_structs.mve_fullsearch_cqueue);
+    
+#if 0
+    for (int i = 0; i < sizes[10] / 8; i++) {
+      printf("%hd, %hd: %d\n" , (short)((bufs->vectors[10][i]).x & 65535) , (short)((bufs->vectors[10][i]).x >> 16) , (bufs->vectors[10][i]).y);
+    }
+#endif
     // Release al the used memory
-    for (int i = 0; i != buffers_used; i++) {
+    for (int i = 0; i < 18; i++) {
+      if (!bufs->ready[i]) continue;
       clReleaseEvent(*mapping_ready[i]);
       clReleaseEvent(ready[i]);
       free(mapping_ready[i]);
