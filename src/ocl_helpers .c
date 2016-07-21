@@ -227,3 +227,14 @@ int ocl_pre_calculate_mvs(struct encoder_state_t* state)
   }
   return 1;
 }
+
+size_t ocl_return_index(const encoder_state_t* const state , int width , int height, const vector2d_t* const orig )
+{
+  // These are to deal with AMP
+  if (width > height) height = width / 2;
+  else if (height > width) width = height / 2;
+  size_t x = (orig->x / width) + state->tile->lcu_offset_x * 64 / width;
+  size_t y = orig->y / height + state->tile->lcu_offset_y * 64 / height;
+  size_t offset = state->encoder_control->cfg->width / width; 
+  return x + y * offset;
+}

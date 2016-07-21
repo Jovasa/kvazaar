@@ -30,6 +30,7 @@
 #include "imagelist.h"
 #include "inter.h"
 #include "kvazaar.h"
+#include "ocl_helpers.h"
 #include "rdo.h"
 #include "strategies/strategies-ipol.h"
 #include "strategies/strategies-picture.h"
@@ -1132,6 +1133,80 @@ static unsigned search_frac(encoder_state_t * const state,
   return best_cost;
 }
 
+static unsigned ocl_search_mv(encoder_state_t * const state ,
+                              unsigned width , unsigned height ,
+                              const kvz_picture *pic , const kvz_picture *ref ,
+                              const vector2d_t *orig , vector2d_t *mv_in_out ,
+                              int16_t mv_cand[2][2] , inter_merge_cand_t merge_cand[MRG_MAX_NUM_CANDS] ,
+                              int16_t num_cand , int32_t ref_idx , const int32_t search_range ,
+                              uint32_t *bitcost_out, part_mode_t part_mode)
+{
+  if (width < 8 || height < 8) {
+    return search_mv_full(state , width , height , pic , ref , orig , mv_in_out , mv_cand , merge_cand , num_cand , ref_idx , search_range , bitcost_out);
+  }
+  if (!orig->x && !orig->y) {
+    for (int i = 0; i < 18; i++){
+      cl_event* event = state->global->buffers[ref_idx].ready[i];
+      if (!event) continue;
+      clWaitForEvents(1 , event);
+    }
+  }
+  cl_int2* vectors;
+  unsigned cost = MAX_INT;
+  kvz_mvd_cost_func *calc_mvd = calc_mvd_cost;
+  if (state->encoder_control->cfg->mv_rdo) {
+    calc_mvd = kvz_calc_mvd_cost_cabac;
+  }
+  switch (part_mode) {
+  case SIZE_2Nx2N:
+    switch (width) {
+    case 64: vectors = state->global->buffers->vectors[0]; break;
+    case 32: vectors = state->global->buffers->vectors[1]; break;
+    case 16: vectors = state->global->buffers->vectors[2]; break;
+    case 8: vectors = state->global->buffers->vectors[3]; break;
+    }break;
+  case SIZE_2NxN:
+    switch (width) {
+    case 64: vectors = state->global->buffers->vectors[4]; break;
+    case 32: vectors = state->global->buffers->vectors[5]; break;
+    case 16: vectors = state->global->buffers->vectors[6]; break;
+    }break;
+  case SIZE_Nx2N:
+    switch (height) {
+    case 64: vectors = state->global->buffers->vectors[7]; break;
+    case 32: vectors = state->global->buffers->vectors[8]; break;
+    case 16: vectors = state->global->buffers->vectors[9]; break;
+    }break;  
+  case SIZE_2NxnU:
+    switch (width) {
+    case 64: vectors = state->global->buffers->vectors[10]; break;
+    case 32: vectors = state->global->buffers->vectors[11]; break;
+    }break;
+  case SIZE_2NxnD:
+    switch (width) {
+    case 64: vectors = state->global->buffers->vectors[12]; break;
+    case 32: vectors = state->global->buffers->vectors[13]; break;
+    }break;
+  case SIZE_nLx2N:
+    switch (height) {
+    case 64: vectors = state->global->buffers->vectors[14]; break;
+    case 32: vectors = state->global->buffers->vectors[15]; break;
+    }break;
+  case SIZE_nRx2N:
+    switch (height) {
+    case 64: vectors = state->global->buffers->vectors[16]; break;
+    case 32: vectors = state->global->buffers->vectors[17]; break;
+    }break;
+  default: break;
+  }
+  size_t offset = ocl_return_index(state , width , height , orig);
+  cl_int2 temp = vectors[offset];
+  vector2d_t mv = {temp.x&65535, temp.x>>16};
+  cost = temp.y;
+  cost += calc_mvd(state , mv.x , mv.y , 2 , mv_cand , merge_cand , num_cand , ref_idx , bitcost_out);
+  return cost;
+}
+
 
 /**
  * \brief Perform inter search for a single reference frame.
@@ -1147,7 +1222,8 @@ static void search_pu_inter_ref(encoder_state_t * const state,
                                 unsigned ref_idx,
                                 uint32_t(*get_mvd_cost)(encoder_state_t * const, vector2d_t *, cabac_data_t*),
                                 double *inter_cost,
-                                uint32_t *inter_bitcost)
+                                uint32_t *inter_bitcost,
+                                part_mode_t part_mode)
 {
   const int x_cu = x >> 3;
   const int y_cu = y >> 3;
@@ -1223,7 +1299,7 @@ static void search_pu_inter_ref(encoder_state_t * const state,
     case KVZ_IME_FULL16:
     case KVZ_IME_FULL8:
     case KVZ_IME_FULL:
-      temp_cost += search_mv_full(state,
+      temp_cost += ocl_search_mv(state,
                                   width, height,
                                   frame->source,
                                   ref_image,
@@ -1234,7 +1310,8 @@ static void search_pu_inter_ref(encoder_state_t * const state,
                                   num_cand,
                                   ref_idx,
                                   search_range,
-                                  &temp_bitcost);
+                                  &temp_bitcost,
+                                  part_mode);
       break;
 
     default:
@@ -1390,7 +1467,8 @@ static void search_pu_inter(encoder_state_t * const state,
                         ref_idx,
                         get_mvd_cost,
                         inter_cost,
-                        inter_bitcost);
+                        inter_bitcost,
+                        part_mode);
   }
 
   // Search bi-pred positions

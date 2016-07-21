@@ -31,4 +31,6 @@ int ocl_pre_calculate_mvs(encoder_state_t* state);
 
 mv_buffers* ocl_mv_buffers_alloc();
 
+size_t ocl_return_index(const encoder_state_t* const state , int width , int height , const vector2d_t* const orig);
+
 #endif //OCL_HELPERS
